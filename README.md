@@ -4,7 +4,7 @@ Herramienta HTML autocontenida: pega el texto de una incidencia y genera una con
 
 ## Uso
 
-1. Abrir `reporte.html` en el navegador.
+1. Abrir `index.html` en el navegador.
 2. Pegar el texto de la incidencia en el area de texto.
 3. Clic en **Cargar Datos al Reporte**.
 4. Clic en **Guardar en PDF / Imprimir**.
