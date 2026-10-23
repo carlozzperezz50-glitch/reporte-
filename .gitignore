@@ -1,0 +1,9 @@
+# Nunca subir respaldos, secretos ni documentos internos
+vaultwarden*
+*.tar.gz
+*.env
+.env*
+*.pem
+*.key
+*.md
+!README.md
