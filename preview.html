@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Reporte</title>
+
+    <!-- Sin indexacion en buscadores: es una herramienta interna, no un sitio publico -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <meta name="referrer" content="no-referrer">
+    <meta name="description" content="Generador local de constancia de incidencia. Todo el procesamiento ocurre en el navegador.">
+
+    <!--
+      Politica de seguridad de contenido.
+      connect-src 'none' bloquea cualquier peticion de red (fetch, XHR, beacons, websockets).
+      form-action 'none' impide que los datos se envien a un servidor.
+      Si alguien agrega codigo de analitica en el futuro, el navegador lo bloquea.
+    -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f9;
+            padding: 30px 15px;
+            color: #333;
+        }
+
+        /* Solo para lectores de pantalla */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Sección de entrada de datos (Se oculta al imprimir) */
+        .input-card {
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            padding: 25px;
+            border-top: 4px solid #3182ce;
+        }
+
+        .input-card h2 {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .input-card p {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 15px;
+        }
+
+        .privacy {
+            font-size: 12px;
+            color: #276749;
+            background-color: #f0fff4;
+            border-left: 3px solid #38a169;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-bottom: 15px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 160px;
+            padding: 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+            outline: none;
+            margin-bottom: 15px;
+        }
+
+        textarea:focus {
+            border-color: #3182ce;
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:focus-visible {
+            outline: 3px solid #2b6cb0;
+            outline-offset: 2px;
+        }
+
+        .btn-generate {
+            background-color: #3182ce;
+            color: white;
+        }
+
+        .btn-generate:hover {
+            background-color: #2b6cb0;
+        }
+
+        .btn-clear {
+            background-color: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-clear:hover {
+            background-color: #cbd5e0;
+        }
+
+        .btn-print {
+            background-color: #38a169;
+            color: white;
+            margin-left: auto;
+        }
+
+        .btn-print:hover {
+            background-color: #2f855a;
+        }
+
+        .print-opt {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #4a5568;
+            margin-top: 15px;
+            cursor: pointer;
+        }
+
+        .print-opt input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* Hoja de Reporte */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 40px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .header-title-main {
+            font-size: 16px;
+            font-weight: 700;
+            color: #e00070;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #1a202c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .badge-status {
+            background-color: #feebc8;
+            color: #9b2c2c;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .header-info-extra {
+            font-size: 12px;
+            color: #4a5568;
+            text-align: right;
+            line-height: 1.4;
+        }
+
+        .section-title {
+            font-size: 16px;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3182ce;
+            padding-left: 10px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .data-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .data-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .data-value {
+            font-size: 15px;
+            color: #2d3748;
+            font-weight: 500;
+            background-color: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            min-height: 38px;
+            overflow-wrap: anywhere;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .footer {
+            margin-top: 40px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #a0aec0;
+            text-align: center;
+        }
+
+        /* Configuración específica e infalible para la impresión */
+        @page {
+            size: letter portrait;
+            margin: 10mm;
+        }
+
+        @media print {
+            html, body {
+                background-color: #ffffff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100%;
+            }
+            .input-card {
+                display: none !important;
+            }
+            .container {
+                box-shadow: none !important;
+                padding: 20px !important;
+                margin: 0 auto !important;
+                width: 100% !important;
+                max-width: 700px !important;
+                transform: scale(0.9);
+                transform-origin: top center;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container { padding: 20px; }
+            .grid { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+            .header { flex-direction: column; gap: 12px; }
+            .header-right { align-items: flex-start; }
+            .btn-print { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cuadro de texto para ingresar datos -->
+    <div class="input-card">
+        <h2>Ingresar / Pegar Datos de la Incidencia</h2>
+        <p>Pega el texto copiado de la incidencia y haz clic en "Cargar Datos al Reporte".</p>
+
+        <div class="privacy" id="aviso-privacidad" role="note">
+            Todo se procesa únicamente en tu navegador. Esta página no envía, no guarda y no sincroniza
+            ningún dato: al cerrar o recargar, la información desaparece.
+        </div>
+
+        <label class="sr-only" for="rawInput">Texto de la incidencia</label>
+        <textarea id="rawInput"
+                  name="incidencia"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="Pega el texto de la incidencia aquí..."
+                  aria-describedby="aviso-privacidad"></textarea>
+
+        <div class="actions">
+            <button type="button" class="btn btn-generate" onclick="procesarTexto()">Cargar Datos al Reporte</button>
+            <button type="button" class="btn btn-clear" onclick="limpiarFormulario()">Limpiar Todo</button>
+            <button type="button" class="btn btn-print" onclick="window.print()">Guardar en PDF / Imprimir</button>
+        </div>
+
+        <label class="print-opt" for="chk-borrar">
+            <input type="checkbox" id="chk-borrar" checked>
+            Borrar los datos automáticamente después de imprimir o guardar el PDF
+        </label>
+    </div>
+
+    <!-- Hoja de reporte -->
+    <div class="container" aria-live="polite">
+        <div class="header">
+            <div>
+                <div class="header-title-main">Liverpool Altaria Aguascalientes</div>
+                <h1>Reporte</h1>
+                <p style="font-size: 13px; color: #718096; margin-top: 5px;">Atención a Cliente y Soporte</p>
+            </div>
+            <div class="header-right">
+                <span class="badge-status" id="out-estatus">Pendiente</span>
+                <div class="header-info-extra">
+                    <div><strong>Teléfono:</strong> 449 139 3400 Ext. 3552 / 3567</div>
+                    <div><strong>Fecha Impresión:</strong> <span id="out-fecha-impresion">-</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Información General</div>
+        <div class="grid">
+            <div class="data-group">
+                <span class="data-label">Remisión / OV</span>
+                <span class="data-value" id="out-remision">-</span>
+            </div>
+            <div class="data-group">
+                <span class="data-label">Folio</span>
+                <span class="data-value" id="out-folio">-</span>
+            </div>
+            <div class="data-group">
+                <span class="data-label">Fecha de Reporte</span>
+                <span class="data-value" id="out-fecha-rep">-</span>
+            </div>
+            <div class="data-group">
+                <span class="data-label">Fecha de Cierre</span>
+                <span class="data-value" id="out-fecha-cierre">-</span>
+            </div>
+        </div>
+
+        <div class="section-title">Detalles de la Categoría e Incidencia</div>
+        <div class="grid">
+            <div class="data-group">
+                <span class="data-label">Categoría</span>
+                <span class="data-value" id="out-categoria">-</span>
+            </div>
+            <div class="data-group">
+                <span class="data-label">Atiende</span>
+                <span class="data-value" id="out-atiende">-</span>
+            </div>
+            <div class="data-group full-width">
+                <span class="data-label">Incidencia</span>
+                <span class="data-value" id="out-incidencia" style="font-weight: bold; color: #c53030;">-</span>
+            </div>
+        </div>
+
+        <div class="section-title">Ubicación y Reportante</div>
+        <div class="grid">
+            <div class="data-group">
+                <span class="data-label">Almacén</span>
+                <span class="data-value" id="out-almacen">-</span>
+            </div>
+            <div class="data-group">
+                <span class="data-label">Nombre del Usuario</span>
+                <span class="data-value" id="out-nombre">-</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Este documento es una constancia de registro de incidencia generada por el sistema.</p>
+        </div>
+    </div>
+
+    <script>
+        // Claves que reconoce el parser. Sirve para detectar valores ausentes:
+        // si despues de "Folio" viene otra clave, significa que el folio no venia en el texto.
+        var CLAVES_CONOCIDAS = [
+            'folio', 'remisión / ov', 'remisión', 'estatus', 'fecha de reporte',
+            'fecha de cierre', 'nombre', 'almacén', 'categoría', 'nombre_categoría',
+            'incidencia', 'atiende'
+        ];
+
+        function esClaveConocida(texto) {
+            var t = texto.toLowerCase();
+            return CLAVES_CONOCIDAS.indexOf(t) !== -1;
+        }
+
+        function normalizarValor(valor) {
+            if (valor === undefined || valor === null) return '-';
+            var t = String(valor).trim();
+            if (t === '' || t.toLowerCase() === 'null') return '-';
+            return t;
+        }
+
+        function obtenerFechaActual() {
+            const ahora = new Date();
+            const yyyy = ahora.getFullYear();
+            const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+            const dd = String(ahora.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function procesarTexto() {
+            const rawText = document.getElementById('rawInput').value;
+
+            document.getElementById('out-fecha-impresion').innerText = obtenerFechaActual();
+
+            if (!rawText.trim()) return;
+
+            const lineas = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            const obtenerValor = (clave) => {
+                const k = clave.toLowerCase();
+
+                // Formato 1: la clave va sola en una linea y el valor en la siguiente
+                const idx = lineas.findIndex(l => l.toLowerCase() === k);
+                if (idx !== -1) {
+                    if (idx + 1 >= lineas.length) return '-';
+                    const siguiente = lineas[idx + 1];
+                    // Si la linea siguiente es otra clave, el valor no venia en el texto
+                    if (esClaveConocida(siguiente)) return '-';
+                    return normalizarValor(siguiente);
+                }
+
+                // Formato 2: "Clave: valor" en la misma linea
+                const conDosPuntos = lineas.find(l => l.toLowerCase().startsWith(k + ':'));
+                if (conDosPuntos) {
+                    return normalizarValor(conDosPuntos.slice(clave.length + 1));
+                }
+
+                return '-';
+            };
+
+            const folio = obtenerValor('Folio');
+            const remisionOV = obtenerValor('Remisión / OV');
+            const remision = remisionOV !== '-' ? remisionOV : obtenerValor('Remisión');
+            const estatus = obtenerValor('Estatus');
+            const fechaReporte = obtenerValor('Fecha de reporte');
+            const fechaCierre = obtenerValor('Fecha de cierre');
+            const nombre = obtenerValor('Nombre');
+            const almacen = obtenerValor('Almacén');
+            const catNum = obtenerValor('Categoría');
+            const catNom = obtenerValor('Nombre_Categoría');
+            const incidencia = obtenerValor('Incidencia');
+            const atiende = obtenerValor('Atiende');
+
+            document.getElementById('out-remision').innerText = remision;
+            document.getElementById('out-folio').innerText = folio;
+            document.getElementById('out-estatus').innerText = estatus !== '-' ? estatus : 'Pendiente';
+            document.getElementById('out-fecha-rep').innerText = fechaReporte;
+            document.getElementById('out-fecha-cierre').innerText = (fechaCierre === 'null' || fechaCierre === '-') ? 'En proceso' : fechaCierre;
+            document.getElementById('out-nombre').innerText = nombre;
+            document.getElementById('out-almacen').innerText = almacen;
+            document.getElementById('out-atiende').innerText = atiende;
+            document.getElementById('out-incidencia').innerText = incidencia;
+
+            if (catNum !== '-' || catNom !== '-') {
+                document.getElementById('out-categoria').innerText = `${catNum !== '-' ? catNum : ''} ${catNom !== '-' ? '- ' + catNom : ''}`.trim();
+            } else {
+                document.getElementById('out-categoria').innerText = '-';
+            }
+        }
+
+        // Borra todo lo que haya en memoria y en pantalla. No toca ningun almacenamiento
+        // porque la pagina no usa ninguno.
+        function limpiarFormulario() {
+            document.getElementById('rawInput').value = '';
+            document.getElementById('out-remision').innerText = '-';
+            document.getElementById('out-folio').innerText = '-';
+            document.getElementById('out-estatus').innerText = 'Pendiente';
+            document.getElementById('out-fecha-rep').innerText = '-';
+            document.getElementById('out-fecha-cierre').innerText = '-';
+            document.getElementById('out-nombre').innerText = '-';
+            document.getElementById('out-almacen').innerText = '-';
+            document.getElementById('out-atiende').innerText = '-';
+            document.getElementById('out-incidencia').innerText = '-';
+            document.getElementById('out-categoria').innerText = '-';
+            document.getElementById('out-fecha-impresion').innerText = obtenerFechaActual();
+        }
+
+        // Al salir de la pagina se limpia el contenido, para que el navegador no lo
+        // conserve al usar "atras" o al recargar (bfcache).
+        window.addEventListener('pagehide', limpiarFormulario);
+        window.addEventListener('pageshow', function (evento) {
+            if (evento.persisted) limpiarFormulario();
+        });
+
+        // Borrado automatico despues de imprimir o guardar el PDF
+        window.addEventListener('afterprint', function () {
+            var opcion = document.getElementById('chk-borrar');
+            if (opcion && opcion.checked) limpiarFormulario();
+        });
+
+        // Cargar fecha actual por defecto
+        document.getElementById('out-fecha-impresion').innerText = obtenerFechaActual();
+    </script>
+</body>
+</html>
