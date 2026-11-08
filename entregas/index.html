@@ -47,6 +47,12 @@
   .input-row{ display: flex; gap: 10px; }
   .input-row .input{ flex: 1; }
   .input-upper{ text-transform: uppercase; }
+
+  .export-range .field { flex: 1; margin-bottom: 0; }
+  @media (max-width: 420px) {
+    .export-range { flex-direction: column; }
+    .export-range .field { width: 100%; }
+  }
   
   .search-container { position: relative; width: 100%; display: flex; align-items: center; }
   .search-container .input { padding-left: 42px; padding-right: 40px; }
@@ -150,6 +156,20 @@
   .btn-confirm {
     background: linear-gradient(135deg, #46d97f, #2a7a4f); color: white;
     box-shadow: 0 4px 15px rgba(70, 217, 127, 0.4);
+  }
+
+  .badge-sin-datos {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: #fde68a;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+    vertical-align: middle;
+    margin-left: 6px;
   }
 </style>
 </head>
@@ -256,6 +276,18 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
+
+      <div class="input-row export-range" style="margin-top:16px;">
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <label for="exportFrom">Desde</label>
+          <input type="date" id="exportFrom" class="input" />
+        </div>
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <label for="exportTo">Hasta</label>
+          <input type="date" id="exportTo" class="input" />
+        </div>
+      </div>
+      <div class="hint" id="exportHint" style="margin-top:8px;">Sin fechas: exporta todo</div>
 
       <button class="btn btn-outline" id="btnExport" style="margin-top:16px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -602,8 +634,8 @@ function actualizarListaEscaneos() {
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
           <div class="lp-label">Último Escaneo</div>
-          <div class="lp">${esc(up(ultimo.LP))}</div>
-          <div class="cliente" style="margin-bottom:0;">${esc(ultimo.NOMBRE_CLIENTE ?? '—')}</div>
+          <div class="lp">${esc(up(ultimo.LP))}${ultimo.SIN_DATOS ? '<span class="badge-sin-datos">SIN DATOS</span>' : ''}</div>
+          <div class="cliente" style="margin-bottom:0;">${esc(ultimo.NOMBRE_CLIENTE || '—')}</div>
         </div>
         
         <div style="display:flex; gap:8px; margin-top:5px;">
@@ -618,20 +650,21 @@ function actualizarListaEscaneos() {
       
       <div class="fila" style="margin-top:20px;">
         <span class="k">${iconLocation} Ubicación</span>
-        <span class="v">${esc(ultimo.ULTIMA_UBICACION ?? '—')}</span>
+        <span class="v">${esc(ultimo.ULTIMA_UBICACION || '—')}</span>
       </div>
       <div class="fila">
         <span class="k">${iconDoc} Remisión</span>
-        <span class="v">${esc(ultimo.REMISION_ORIGINAL ?? '—')}</span>
+        <span class="v">${esc(ultimo.REMISION_ORIGINAL || '—')}</span>
       </div>
       <div class="fila">
         <span class="k">${iconTag} SKU</span>
-        <span class="v">${esc(ultimo.ID_DE_ARTICULO ?? '—')}</span>
+        <span class="v">${esc(ultimo.ID_DE_ARTICULO || '—')}</span>
       </div>
       <div class="fila">
         <span class="k">${iconBox} Piezas resguardo</span>
-        <span class="v">${esc(ultimo.PIEZAS_RESGUARDO ?? '—')}</span>
+        <span class="v">${esc(ultimo.PIEZAS_RESGUARDO || '—')}</span>
       </div>
+      ${ultimo.SIN_DATOS ? `<div class="fila"><span class="k">${iconWarning} Origen</span><span class="v">No encontrado en XLSX</span></div>` : ''}
     </div>
   `;
 
@@ -639,7 +672,7 @@ function actualizarListaEscaneos() {
   contLista.innerHTML = anteriores.map((item, index) => `
     <div class="scan-item-small">
       <div class="info">
-        <strong>${esc(up(item.LP))} - ${esc(item.NOMBRE_CLIENTE ?? '—')}</strong>
+        <strong>${esc(up(item.LP))}${item.SIN_DATOS ? '<span class="badge-sin-datos">SIN DATOS</span>' : ''} - ${esc(item.NOMBRE_CLIENTE || '—')}</strong>
         <span>Remisión: ${esc(item.REMISION_ORIGINAL ?? '—')} | SKU: ${esc(item.ID_DE_ARTICULO ?? '—')}</span>
       </div>
       <button class="btn-delete" onclick="eliminarEscaneo(${index})">
@@ -654,12 +687,33 @@ window.eliminarEscaneo = function(index) {
   actualizarListaEscaneos();
 };
 
+function crearRegistroSinDatos(code) {
+  return {
+    LP: up(code),
+    NOMBRE_CLIENTE: '',
+    ULTIMA_UBICACION: '',
+    REMISION_ORIGINAL: '',
+    ID_DE_ARTICULO: '',
+    PIEZAS_RESGUARDO: '',
+    ESTADO: 'NO ENCONTRADO',
+    SIN_DATOS: true
+  };
+}
+
 function agregarEscaneo(code, row) {
   if (!row) {
-    showToast('❌ LP no encontrado: ' + code);
-    return;
+    const respuesta = confirm(
+      `LP no encontrado: ${code}\n\n` +
+      '¿Deseas registrarlo de todos modos?\n' +
+      '(El archivo XLSX podría estar desactualizado).'
+    );
+    if (!respuesta) {
+      showToast('❌ LP no registrado: ' + code);
+      return;
+    }
+    row = crearRegistroSinDatos(code);
   }
-  
+
   if (escaneosPendientes.some(r => up(r.LP) === up(row.LP))) {
     showToast('⚠️ Este LP ya está en la lista');
     return;
@@ -700,7 +754,9 @@ window.confirmarTodos = async function() {
         timestamp: now, fecha: fmtFecha(now), operador,
         lp: up(r.LP), cliente: String(r.NOMBRE_CLIENTE ?? ''),
         ubicacion: String(r.ULTIMA_UBICACION ?? ''), remision: String(r.REMISION_ORIGINAL ?? ''),
-        sku: String(r.ID_DE_ARTICULO ?? ''), piezas: String(r.PIEZAS_RESGUARDO ?? '')
+        sku: String(r.ID_DE_ARTICULO ?? ''), piezas: String(r.PIEZAS_RESGUARDO ?? ''),
+        sinDatos: !!r.SIN_DATOS,
+        origen: r.SIN_DATOS ? 'SIN DATOS' : 'XLSX'
       };
       await dbAdd(registro);
     }
@@ -941,7 +997,7 @@ async function renderHistorial() {
             ${itemsDia.map(it => `
               <div class="hist-item">
                 <div class="h-top">
-                  <span class="h-lp">LP: ${esc(up(it.lp))}</span>
+                  <span class="h-lp">LP: ${esc(up(it.lp))}${it.sinDatos ? '<span class="badge-sin-datos">SIN DATOS</span>' : ''}</span>
                   <span class="h-fecha">${esc(it.fecha.split(',')[1] || '')}</span>
                 </div>
                 <div class="h-cliente">${esc(it.cliente || '—')}</div>
@@ -983,24 +1039,70 @@ async function refrescarStatsHist() {
 }
 
 /* --- EXPORTAR A XLSX --- */
+function obtenerRangoExport() {
+  const from = $('exportFrom').value;
+  const to = $('exportTo').value;
+  const desde = from ? new Date(from + 'T00:00:00').getTime() : null;
+  const hasta = to ? new Date(to + 'T23:59:59.999').getTime() : null;
+  if (desde !== null && hasta !== null && desde > hasta) {
+    return { error: 'La fecha "Desde" no puede ser mayor que "Hasta"' };
+  }
+  return { from, to, desde, hasta };
+}
+
+function filtrarPorRango(items, rango) {
+  return items.filter(it => {
+    const ts = Number(it.timestamp) || 0;
+    if (rango.desde !== null && ts < rango.desde) return false;
+    if (rango.hasta !== null && ts > rango.hasta) return false;
+    return true;
+  });
+}
+
+function sufijoRango(rango) {
+  if (rango.from && rango.to) return `${rango.from}_a_${rango.to}`;
+  if (rango.from) return `desde_${rango.from}`;
+  if (rango.to) return `hasta_${rango.to}`;
+  return 'todo';
+}
+
+async function actualizarHintExport() {
+  const rango = obtenerRangoExport();
+  if (rango.error) { $('exportHint').textContent = '⚠️ ' + rango.error; return; }
+  const items = await dbGetAll();
+  const n = filtrarPorRango(items, rango).length;
+  $('exportHint').textContent = n ? `${n} registro(s) en el rango` : 'Sin registros en ese rango';
+}
+
+$('exportFrom').addEventListener('change', actualizarHintExport);
+$('exportTo').addEventListener('change', actualizarHintExport);
+
 $('btnExport').addEventListener('click', async () => {
   try {
+    const rango = obtenerRangoExport();
+    if (rango.error) { showToast('⚠️ ' + rango.error); return; }
     const items = await dbGetAll();
     if (!items.length) { showToast('Sin registros para exportar'); return; }
-    items.sort((a, b) => a.timestamp - b.timestamp);
+    const filtrados = filtrarPorRango(items, rango);
+    if (!filtrados.length) { showToast('Sin registros en ese rango'); return; }
+    filtrados.sort((a, b) => a.timestamp - b.timestamp);
 
-    const rows = items.map(it => ({
+    const rows = filtrados.map(it => ({
       FECHA_HORA: it.fecha, OPERADOR: it.operador, LP: up(it.lp), CLIENTE: it.cliente,
-      UBICACION: it.ubicacion, REMISION: it.remision, SKU: it.sku, PIEZAS_RESGUARDO: it.piezas
+      UBICACION: it.ubicacion, REMISION: it.remision, SKU: it.sku, PIEZAS_RESGUARDO: it.piezas,
+      ORIGEN: it.sinDatos ? 'SIN DATOS' : 'XLSX'
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [ { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 } ];
+    ws['!cols'] = [ { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 } ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Entregas');
-    const fecha = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    XLSX.writeFile(wb, `entregas_${fecha}.xlsx`);
-    showToast('📥 Exportado');
+    const sufijo = sufijoRango(rango);
+    const nombre = sufijo === 'todo'
+      ? `entregas_todo_${new Date().toISOString().slice(0,10)}.xlsx`
+      : `entregas_${sufijo}.xlsx`;
+    XLSX.writeFile(wb, nombre);
+    showToast('📥 Exportado: ' + filtrados.length + ' registro(s)');
   } catch (err) { alert('Error al exportar: ' + err.message); }
 });
 
