@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Entregas · Glassmorphism</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --text-dark: #1a1a2e; --text-light: #ffffff; --text-muted: #6b6b8a;
+    --text-muted-light: rgba(255, 255, 255, 0.85);
+    --purple-light: #b39ddb; --purple-main: #8c66e3; --purple-dark: #512da8;
+    --glass-bg: rgba(255, 255, 255, 0.5); --glass-border: rgba(255, 255, 255, 0.8);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+    --glass-dark-bg: rgba(20, 20, 30, 0.4); --glass-dark-border: rgba(255, 255, 255, 0.15);
+    --danger: #d32f2f;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family: 'Inter', sans-serif; color: var(--text-dark); min-height: 100vh; padding-bottom: 32px; /* Reducido porque ya no hay barra flotante */
+    background-color: #2a2a3a;
+    background-image: linear-gradient(to bottom, rgba(30, 30, 50, 0.4), rgba(10, 10, 20, 0.6)), url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1200&auto=format&fit=crop');
+    background-size: cover; background-position: center; background-attachment: fixed; background-repeat: no-repeat;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  header{
+    padding: 24px 16px 20px; text-align: center; position: sticky; top: 0; z-index: 100;
+    background: var(--glass-dark-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-dark-border);
+  }
+  .brand{ font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; color: var(--text-light); letter-spacing: -0.5px; text-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .brand span { color: #d1c4e9; font-style: italic; }
+  .brand svg { width: 28px; height: 28px; color: #d1c4e9; }
+  .brand-sub{ font-size: 10px; letter-spacing: 3px; color: var(--text-muted-light); text-transform: uppercase; margin-top: 4px; font-weight: 500; }
+  .container{ padding: 16px; max-width: 720px; margin: 0 auto; }
+  .card{ background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 20px; margin-bottom: 16px; box-shadow: var(--glass-shadow); position: relative; overflow: hidden; }
+  .card-title{ font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title svg { color: var(--purple-dark); width: 20px; height: 20px; }
+  .field{ margin-bottom: 12px; }
+  .field label{ display:block; font-size: 11px; letter-spacing: 1.5px; text-transform:uppercase; color: var(--purple-dark); margin-bottom:6px; font-weight: 700; }
+  .input{ width: 100%; padding: 14px 16px; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 14px; color: var(--text-dark); font-size: 15px; font-family: 'Inter', sans-serif; transition: all 0.3s; outline: none; }
+  .input:focus{ background: rgba(255, 255, 255, 0.9); border-color: var(--purple-light); box-shadow: 0 0 0 4px rgba(179, 157, 219, 0.3); }
+  .input::placeholder{ color: #8e8ea8; }
+  .input-row{ display: flex; gap: 10px; }
+  .input-row .input{ flex: 1; }
+  .input-upper{ text-transform: uppercase; }
+  
+  .search-container { position: relative; width: 100%; display: flex; align-items: center; }
+  .search-container .input { padding-left: 42px; padding-right: 40px; }
+  .search-icon { position: absolute; left: 14px; width: 18px; height: 18px; color: var(--purple-main); opacity: 0.6; pointer-events: none; }
+  .clear-search { position: absolute; right: 12px; width: 24px; height: 24px; background: rgba(179, 157, 219, 0.2); border-radius: 50%; display: none; align-items: center; justify-content: center; cursor: pointer; color: var(--purple-dark); border: none; padding: 0; transition: all 0.2s; }
+  .clear-search:hover { background: rgba(179, 157, 219, 0.4); }
+  .clear-search svg { width: 14px; height: 14px; }
+
+  .btn{ display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 15px; font-size: 14px; font-weight: 600; border: none; border-radius: 16px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+  .btn:active{ transform: scale(0.97); }
+  .btn svg { width: 18px; height: 18px; }
+  .btn-gold, .btn-primary{ background: linear-gradient(135deg, #a88bf0, #7e57c2); color: white; box-shadow: 0 8px 20px rgba(126, 87, 194, 0.25), inset 0 1px 0 rgba(255,255,255,0.4); }
+  .btn-outline{ background: rgba(255, 255, 255, 0.5); color: var(--purple-dark); border: 1px solid var(--glass-border); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+  .btn-danger{ background: rgba(255, 255, 255, 0.5); color: var(--danger); border: 1px solid rgba(211, 47, 47, 0.3); }
+  .btn-small{ padding: 14px 20px; width: auto; font-size: 13px; }
+  .input-row .btn{ margin-top: 0; }
+  .btn + .btn{ margin-top: 10px; }
+  
+  input[type="file"]{ display:none; }
+  .file-label{ display: flex; align-items: center; justify-content: center; gap: 10px; padding: 18px; background: rgba(255, 255, 255, 0.5); color: var(--purple-dark); border: 2px dashed rgba(126, 87, 194, 0.4); border-radius: 16px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+  .file-label:active{ background: rgba(255, 255, 255, 0.8); }
+  .file-label svg { width: 20px; height: 20px; }
+  .info-msg{ font-size: 12px; color: var(--text-dark); padding: 12px; background: rgba(255, 255, 255, 0.4); border-radius: 12px; margin-top: 12px; text-align: center; border: 1px solid var(--glass-border); font-weight: 500; }
+  
+  .stats{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .stat{ background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 16px 10px; text-align: center; box-shadow: var(--glass-shadow); }
+  .stat .num{ font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; color: var(--purple-dark); }
+  .stat .lbl{ font-size: 10px; letter-spacing: 1px; color: var(--text-dark); text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+
+  #scanner-container{ position: relative; width: 100%; background: #000; border-radius: 20px; overflow: hidden; margin-bottom: 16px; display: none; box-shadow: var(--glass-shadow); border: 2px solid rgba(255,255,255,0.8); }
+  #scanner-container video{ width: 100%; display: block; min-height: 220px; object-fit: cover; }
+  .scan-overlay{ position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .scan-box{ width: 75%; height: 40%; border: 2px solid white; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.4); }
+
+  .resultado{ background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid white; border-radius: 24px; padding: 24px; margin-bottom: 16px; box-shadow: 0 12px 40px rgba(31, 38, 135, 0.15); animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes slideUp{ from{opacity:0; transform: translateY(20px);} to{opacity:1; transform: none;} }
+  .resultado .lp-label{ font-size: 11px; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+  .resultado .lp{ font-family: 'Playfair Display', serif; font-size: 18px; color: var(--purple-dark); margin-top: 4px; letter-spacing: 1px; font-weight: 600; }
+  .resultado .cliente{ font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: var(--text-dark); margin: 12px 0 20px; line-height: 1.2; }
+  .resultado .fila{ display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(179, 157, 219, 0.2); font-size: 14px; }
+  .resultado .fila:last-child{ border-bottom: none; }
+  .resultado .fila .k{ color: var(--text-muted); font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .resultado .fila .k svg { color: var(--purple-main); width: 16px; height: 16px; }
+  .resultado .fila .v{ font-weight: 600; color: var(--text-dark); text-align: right; max-width: 60%; font-size: 15px; }
+  
+  .lista-escaneos { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .scan-item-small { background: rgba(255, 255, 255, 0.5); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+  .scan-item-small .info { display: flex; flex-direction: column; gap: 2px; }
+  .scan-item-small .info strong { font-size: 13px; color: var(--text-dark); }
+  .scan-item-small .info span { font-size: 11px; color: var(--text-muted); }
+  .btn-delete { background: transparent; border: none; color: var(--danger); cursor: pointer; padding: 6px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+  .btn-delete:hover { background: rgba(211, 47, 47, 0.1); }
+  .btn-delete svg { width: 18px; height: 18px; }
+
+  .error{ color: #d32f2f; font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; text-align: center; margin: 10px 0; }
+  .hint{ font-size: 12px; color: var(--text-dark); text-align: center; margin-top: 10px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .hint svg { width: 14px; height: 14px; }
+  
+  .acordeon { background: rgba(255, 255, 255, 0.4); border: 1px solid var(--glass-border); border-radius: 16px; margin-bottom: 10px; overflow: hidden; transition: all 0.3s; }
+  .acordeon-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: rgba(255, 255, 255, 0.2); font-family: 'Playfair Display', serif; font-weight: 700; font-size: 16px; color: var(--purple-dark); }
+  .acordeon-header svg { transition: transform 0.3s; width: 20px; height: 20px; color: var(--purple-main); }
+  .acordeon.open .acordeon-header svg { transform: rotate(180deg); }
+  .acordeon-content { display: none; padding: 0 10px 10px 10px; border-top: 1px solid rgba(179, 157, 219, 0.2); }
+  .acordeon.open .acordeon-content { display: block; animation: fadeIn 0.3s; }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  .hist-item{ background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+  .hist-item .h-top{ display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
+  .hist-item .h-lp{ font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700; color: var(--purple-dark); }
+  .hist-item .h-fecha{ font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .hist-item .h-cliente{ font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .hist-item .h-meta{ display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--text-dark); font-weight: 500; }
+  .hist-item .h-meta span { display: flex; align-items: center; gap: 4px; }
+  .hist-item .h-meta svg { color: var(--purple-main); width: 14px; height: 14px; opacity: 0.8; }
+  .empty{ text-align: center; padding: 30px; color: var(--text-light); font-style: italic; font-family: 'Playfair Display', serif; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  
+  .tabs{ display: flex; gap: 6px; background: var(--glass-dark-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 6px; border-radius: 16px; margin-bottom: 16px; border: 1px solid var(--glass-dark-border); }
+  .tab{ flex: 1; padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-muted-light); background: transparent; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .tab svg { width: 16px; height: 16px; }
+  .tab.active{ background: var(--glass-bg); color: var(--purple-dark); box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-weight: 700; }
+  .tab.active svg { color: var(--purple-dark); }
+  
+  .toast{ position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: rgba(26, 26, 46, 0.9); backdrop-filter: blur(10px); color: white; padding: 14px 24px; border-radius: 30px; font-size: 13px; font-weight: 600; z-index: 999; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: toastIn 0.3s ease; }
+  @keyframes toastIn{ from{opacity:0; transform:translate(-50%, 10px);} to{opacity:1; transform:translate(-50%,0);} }
+  .loader{ display:inline-block; width:14px; height:14px; border:2px solid rgba(126, 87, 194, 0.3); border-top-color: var(--purple-main); border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .hidden{ display:none !important; }
+
+  /* --- NUEVOS BOTONES DE ACCIÓN (X Y PALOMA) --- */
+  .btn-action {
+    width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    padding: 0;
+  }
+  .btn-action svg { width: 20px; height: 20px; }
+  .btn-action:active { transform: scale(0.9); }
+  
+  .btn-cancel {
+    background: rgba(255, 255, 255, 0.8); color: var(--danger); border: 1px solid rgba(211, 47, 47, 0.3);
+  }
+  .btn-confirm {
+    background: linear-gradient(135deg, #46d97f, #2a7a4f); color: white;
+    box-shadow: 0 4px 15px rgba(70, 217, 127, 0.4);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+    Gestor de <span>Entregas</span>
+  </div>
+  <div class="brand-sub">Control de Salidas</div>
+</header>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="operar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      Operar
+    </button>
+    <button class="tab" data-tab="historial">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      Historial
+    </button>
+    <button class="tab" data-tab="datos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      Datos
+    </button>
+  </div>
+
+  <!-- TAB OPERAR -->
+  <div id="tab-operar">
+    <div class="stats" id="stats" style="display:none;">
+      <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Activos</div></div>
+      <div class="stat"><div class="num" id="statEntregados">0</div><div class="lbl">Entregados</div></div>
+      <div class="stat"><div class="num" id="statHist">0</div><div class="lbl">Registros</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        Operador
+      </div>
+      <div class="field">
+        <label>Nombre de quien entrega</label>
+        <input type="text" class="input" id="operadorInput" placeholder="Ej. Juan Pérez" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        Escanear LP
+      </div>
+      <button class="btn btn-gold" id="btnScan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        Iniciar Escáner
+      </button>
+      <button class="btn btn-danger" id="btnStop" style="display:none;">Detener Cámara</button>
+      
+      <!-- BOTÓN DE LINTERNA -->
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn btn-outline" id="btnTorch" style="display:none; flex:1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1.45.62 2.84 1.5 3.5.76.76 1.23 1.52 1.41 2.5"></path></svg>
+          Linterna
+        </button>
+      </div>
+      
+      <div class="hint" style="justify-content:center; margin-top:10px;">Apunta al código de barras</div>
+    </div>
+
+    <div id="scanner-container">
+      <video id="video" muted playsinline></video>
+      <div class="scan-overlay"><div class="scan-box"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="6" y1="8" x2="6.01" y2="8"></line><line x1="10" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="6.01" y2="12"></line><line x1="10" y1="12" x2="18" y2="12"></line><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="18" y2="16"></line></svg>
+        Ingreso Manual
+      </div>
+      <div class="input-row">
+        <input type="text" class="input input-upper" id="lpManual" placeholder="Escribe el LP" autocomplete="off" inputmode="text" />
+        <button class="btn btn-outline btn-small" id="btnManual">Buscar</button>
+      </div>
+    </div>
+
+    <div id="resultado"></div>
+    <div id="listaEscaneos" class="lista-escaneos"></div>
+  </div>
+
+  <!-- TAB HISTORIAL -->
+  <div id="tab-historial" class="hidden">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        Registro
+      </div>
+      
+      <div class="search-container">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" class="input" id="searchHistInput" placeholder="Buscar por LP, remisión, cliente o SKU..." autocomplete="off" />
+        <button class="clear-search" id="btnClearSearch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <button class="btn btn-outline" id="btnExport" style="margin-top:16px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Exportar a XLSX
+      </button>
+      <button class="btn btn-danger" id="btnClearHist" style="margin-top:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        Borrar Historial
+      </button>
+    </div>
+    <div id="histList"></div>
+  </div>
+
+  <!-- TAB DATOS -->
+  <div id="tab-datos" class="hidden">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        Archivo de Pedidos
+      </div>
+      <label for="fileInput" class="file-label" id="fileLabel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        <span id="fileLabelText">Subir archivo XLSX</span>
+      </label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+      <div class="info-msg" id="fileInfo">Sin archivo cargado</div>
+      
+      <button class="btn btn-danger" id="btnClearXlsx" style="margin-top:12px; display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        Limpiar Datos Cargados
+      </button>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        Info
+      </div>
+      <div class="hint" style="text-align:left; display:block;">
+        • Se descartan filas donde <b>ESTADO ≠ "En Bodega"</b>.<br>
+        • Cada nuevo archivo sustituye al anterior.<br>
+        • Los datos se guardan en la memoria del navegador.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+<script>
+/* ================================================================
+   PARTE 2: CONFIGURACIÓN, BASE DE DATOS Y CARGA XLSX
+   ================================================================ */
+
+const STORAGE_KEY = 'entregas_data_v2';
+const OPERADOR_KEY = 'entregas_operador_v1';
+const DB_NAME = 'entregas_db';
+const DB_VERSION = 1;
+const STORE_HIST = 'historial';
+
+let dataRows = [];
+let lpIndex = new Map();
+let codeReader = null;
+let scanning = false;
+let videoTrack = null;
+let torchOn = false;
+
+/* --- UTILERÍAS --- */
+const $ = id => document.getElementById(id);
+const norm = k => String(k).trim().toUpperCase().replace(/\s+/g,'_');
+const up = v => String(v ?? '').trim().toUpperCase();
+const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+// Icono SVG para las alertas
+const iconWarning = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+
+function showToast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  const conIcono = msg.includes('⚠️');
+  t.textContent = msg.replace('⚠️', '').trim();
+  if (conIcono) t.insertAdjacentHTML('afterbegin', iconWarning);
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 2800);
+}
+
+function fmtFecha(ts){
+  return new Date(ts).toLocaleString('es-MX',{
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+}
+
+/* --- BASE DE DATOS (INDEXEDDB) --- */
+let _db = null;
+function openDB(){
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_HIST)){
+        const store = db.createObjectStore(STORE_HIST, { keyPath:'id', autoIncrement:true });
+        store.createIndex('lp', 'lp', { unique:false });
+        store.createIndex('timestamp', 'timestamp', { unique:false });
+      }
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function dbAdd(item){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE_HIST,'readwrite');
+    const req = tx.objectStore(STORE_HIST).add(item);
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+
+async function dbGetAll(){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE_HIST,'readonly');
+    const req = tx.objectStore(STORE_HIST).getAll();
+    req.onsuccess = ()=> resolve(req.result || []);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+
+async function dbClear(){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE_HIST,'readwrite');
+    tx.objectStore(STORE_HIST).clear();
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  });
+}
+
+/* --- GESTIÓN DE PEDIDOS (LOCALSTORAGE) --- */
+function savePedidos(rows){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ savedAt:Date.now(), rows }));
+  }catch(e){
+    try{
+      const slim = rows.map(r=>({
+        LP:r.LP, NOMBRE_CLIENTE:r.NOMBRE_CLIENTE, ULTIMA_UBICACION:r.ULTIMA_UBICACION,
+        ID_DE_ARTICULO:r.ID_DE_ARTICULO, PIEZAS_RESGUARDO:r.PIEZAS_RESGUARDO,
+        REMISION_ORIGINAL:r.REMISION_ORIGINAL, ESTADO:r.ESTADO
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ savedAt:Date.now(), rows:slim }));
+      showToast('Datos reducidos por límite');
+    }catch(e2){ alert('No se pudo guardar: ' + e2.message); }
+  }
+}
+
+function loadPedidos(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const p = JSON.parse(raw);
+    if (!p || !Array.isArray(p.rows)) return false;
+    
+    dataRows = p.rows; 
+    buildIndex(); 
+    updateStats();
+    
+    const fecha = p.savedAt ? new Date(p.savedAt).toLocaleString('es-MX') : '—';
+    $('fileInfo').innerHTML = `✅ <b>${dataRows.length}</b> pedidos en memoria<br><small>Actualizado: ${fecha}</small>`;
+    $('fileLabelText').textContent = 'Reemplazar archivo XLSX';
+    $('btnClearXlsx').style.display = 'flex';
+    return true;
+  }catch(e){ return false; }
+}
+
+function buildIndex(){
+  lpIndex.clear();
+  for (const r of dataRows){
+    const lp = up(r.LP);
+    if (lp) lpIndex.set(lp, r);
+  }
+}
+
+function updateStats(){
+  $('statTotal').textContent = dataRows.length;
+  $('stats').style.display = dataRows.length ? 'grid' : 'none';
+}
+
+/* --- PROCESAR XLSX --- */
+function processWorkbook(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { defval:'' });
+  if (!raw.length) throw new Error('El archivo está vacío');
+  
+  const rows = raw.map(r=>{
+    const o = {};
+    for (const k in r) o[norm(k)] = r[k];
+    return o;
+  });
+  
+  const f = rows.filter(r => String(r.ESTADO ?? '').trim().toLowerCase() === 'en bodega');
+  if (!f.length) throw new Error('No hay filas con ESTADO = "En Bodega"');
+  return f;
+}
+
+$('fileInput').addEventListener('change', async ev=>{
+  const file = ev.target.files[0];
+  if (!file) return;
+  
+  $('fileLabelText').textContent = 'Procesando...';
+  $('fileInfo').innerHTML = '<span class="loader"></span> Leyendo...';
+  
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array', cellDates:true });
+    const filtradas = processWorkbook(wb);
+    
+    dataRows = filtradas; 
+    buildIndex(); 
+    savePedidos(dataRows); 
+    updateStats();
+    
+    $('fileInfo').innerHTML = `✅ <b>${dataRows.length}</b> pedidos cargados`;
+    $('fileLabelText').textContent = 'Reemplazar archivo XLSX';
+    $('btnClearXlsx').style.display = 'flex';
+    
+    if (typeof escaneosPendientes !== 'undefined') {
+      escaneosPendientes = [];
+      actualizarListaEscaneos();
+    }
+    
+    showToast('Archivo cargado');
+  }catch(err){
+    console.error(err);
+    $('fileInfo').innerHTML = `<span style="color:#d32f2f">❌ ${esc(err.message)}</span>`;
+    $('fileLabelText').textContent = 'Cargar archivo XLSX';
+  }finally{ 
+    ev.target.value = ''; 
+  }
+});
+
+/* --- LIMPIAR XLSX CARGADO --- */
+$('btnClearXlsx').addEventListener('click', () => {
+  if (!confirm('¿Estás seguro de que quieres borrar el archivo XLSX de la memoria?')) return;
+  
+  localStorage.removeItem(STORAGE_KEY);
+  dataRows = [];
+  lpIndex.clear();
+  
+  updateStats();
+  if (typeof escaneosPendientes !== 'undefined') {
+    escaneosPendientes = [];
+    actualizarListaEscaneos();
+  }
+  
+  $('fileInfo').innerHTML = 'Sin archivo cargado';
+  $('fileLabelText').textContent = 'Subir archivo XLSX';
+  $('btnClearXlsx').style.display = 'none';
+  
+  showToast('🗑 Datos XLSX eliminados');
+});
+
+/* --- LINTERNA --- */
+$('btnTorch').addEventListener('click', async () => {
+  if (!videoTrack) return;
+  try {
+    torchOn = !torchOn;
+    await videoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+    
+    if (torchOn) {
+      $('btnTorch').classList.remove('btn-outline');
+      $('btnTorch').classList.add('btn-gold');
+    } else {
+      $('btnTorch').classList.add('btn-outline');
+      $('btnTorch').classList.remove('btn-gold');
+    }
+  } catch (err) {
+    showToast('⚠️ Linterna no disponible');
+  }
+});
+
+/* --- LÓGICA DE LA "X" EN EL BUSCADOR --- */
+const searchInput = $('searchHistInput');
+const btnClearSearch = $('btnClearSearch');
+
+searchInput.addEventListener('input', () => {
+  if (searchInput.value.length > 0) {
+    btnClearSearch.style.display = 'flex';
+  } else {
+    btnClearSearch.style.display = 'none';
+  }
+});
+
+btnClearSearch.addEventListener('click', () => {
+  searchInput.value = '';
+  btnClearSearch.style.display = 'none';
+  searchInput.focus();
+  searchInput.dispatchEvent(new Event('input'));
+});
+/* ================================================================
+   PARTE 3: LÓGICA DE MÚLTIPLES ESCANEOS Y VECTORES
+   ================================================================ */
+
+let escaneosPendientes = [];
+
+const iconLocation = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+const iconDoc = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+const iconTag = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`;
+const iconBox = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+const iconUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+const iconCheck = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const iconChevron = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+const iconCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+const iconTrash = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+const iconX = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+
+function buscarLP(code){
+  const key = up(code);
+  if (!key) return null;
+  if (lpIndex.has(key)) return lpIndex.get(key);
+  const alt = key.replace(/^0+/, '');
+  if (alt && alt !== key && lpIndex.has(alt)) return lpIndex.get(alt);
+  for (const [lp, row] of lpIndex){
+    if (lp.replace(/^0+/, '') === alt) return row;
+  }
+  return null;
+}
+
+function actualizarListaEscaneos() {
+  const contLista = $('listaEscaneos');
+  const contResultado = $('resultado');
+
+  if (escaneosPendientes.length === 0) {
+    contLista.innerHTML = '';
+    contResultado.innerHTML = '';
+    return;
+  }
+
+  const ultimo = escaneosPendientes[escaneosPendientes.length - 1];
+  
+  // AQUÍ AGREGAMOS LOS BOTONES X Y PALOMA
+  contResultado.innerHTML = `
+    <div class="resultado">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div class="lp-label">Último Escaneo</div>
+          <div class="lp">${esc(up(ultimo.LP))}</div>
+          <div class="cliente" style="margin-bottom:0;">${esc(ultimo.NOMBRE_CLIENTE ?? '—')}</div>
+        </div>
+        
+        <div style="display:flex; gap:8px; margin-top:5px;">
+          <button class="btn-action btn-cancel" onclick="limpiarEscaneos()" title="Descartar todos">
+            ${iconX}
+          </button>
+          <button class="btn-action btn-confirm" onclick="confirmarTodos()" title="Confirmar todos">
+            ${iconCheck}
+          </button>
+        </div>
+      </div>
+      
+      <div class="fila" style="margin-top:20px;">
+        <span class="k">${iconLocation} Ubicación</span>
+        <span class="v">${esc(ultimo.ULTIMA_UBICACION ?? '—')}</span>
+      </div>
+      <div class="fila">
+        <span class="k">${iconDoc} Remisión</span>
+        <span class="v">${esc(ultimo.REMISION_ORIGINAL ?? '—')}</span>
+      </div>
+      <div class="fila">
+        <span class="k">${iconTag} SKU</span>
+        <span class="v">${esc(ultimo.ID_DE_ARTICULO ?? '—')}</span>
+      </div>
+      <div class="fila">
+        <span class="k">${iconBox} Piezas resguardo</span>
+        <span class="v">${esc(ultimo.PIEZAS_RESGUARDO ?? '—')}</span>
+      </div>
+    </div>
+  `;
+
+  const anteriores = escaneosPendientes.slice(0, -1);
+  contLista.innerHTML = anteriores.map((item, index) => `
+    <div class="scan-item-small">
+      <div class="info">
+        <strong>${esc(up(item.LP))} - ${esc(item.NOMBRE_CLIENTE ?? '—')}</strong>
+        <span>Remisión: ${esc(item.REMISION_ORIGINAL ?? '—')} | SKU: ${esc(item.ID_DE_ARTICULO ?? '—')}</span>
+      </div>
+      <button class="btn-delete" onclick="eliminarEscaneo(${index})">
+        ${iconTrash}
+      </button>
+    </div>
+  `).join('');
+}
+
+window.eliminarEscaneo = function(index) {
+  escaneosPendientes.splice(index, 1);
+  actualizarListaEscaneos();
+};
+
+function agregarEscaneo(code, row) {
+  if (!row) {
+    showToast('❌ LP no encontrado: ' + code);
+    return;
+  }
+  
+  if (escaneosPendientes.some(r => up(r.LP) === up(row.LP))) {
+    showToast('⚠️ Este LP ya está en la lista');
+    return;
+  }
+
+  escaneosPendientes.push(row);
+  actualizarListaEscaneos();
+}
+
+/* --- FUNCIONES DE LOS NUEVOS BOTONES --- */
+
+// Función para la "X" (Descartar todo)
+window.limpiarEscaneos = function() {
+  if (confirm('¿Descartar todos los escaneos pendientes?')) {
+    escaneosPendientes = [];
+    actualizarListaEscaneos();
+  }
+};
+
+// Función para la "Palomita" (Confirmar todo)
+window.confirmarTodos = async function() {
+  if (escaneosPendientes.length === 0) return;
+  
+  const operador = $('operadorInput').value.trim();
+  if (!operador){
+    showToast('⚠️ Escribe el nombre de quien entrega');
+    $('operadorInput').focus();
+    return;
+  }
+  localStorage.setItem(OPERADOR_KEY, operador);
+
+  try {
+    showToast('Guardando...');
+    
+    const now = Date.now();
+    for (const r of escaneosPendientes) {
+      const registro = {
+        timestamp: now, fecha: fmtFecha(now), operador,
+        lp: up(r.LP), cliente: String(r.NOMBRE_CLIENTE ?? ''),
+        ubicacion: String(r.ULTIMA_UBICACION ?? ''), remision: String(r.REMISION_ORIGINAL ?? ''),
+        sku: String(r.ID_DE_ARTICULO ?? ''), piezas: String(r.PIEZAS_RESGUARDO ?? '')
+      };
+      await dbAdd(registro);
+    }
+
+    if (navigator.vibrate) navigator.vibrate([100,50,100]);
+    showToast('✅ ' + escaneosPendientes.length + ' entregas registradas');
+    
+    escaneosPendientes = [];
+    actualizarListaEscaneos();
+    refrescarStatsHist(); 
+    renderHistorial();
+    
+  } catch(err) {
+    console.error(err);
+    alert('Error al guardar: ' + err.message);
+  }
+};
+/* ================================================================
+   PARTE 4: ESCÁNER DE CÁMARA (FUNCIÓN ORIGINAL)
+   ================================================================ */
+
+let ultimoCodigo = '';
+let ultimoCodigoTs = 0;
+
+async function startScan(){
+  if (!dataRows.length){
+    showToast('⚠️ Primero carga un archivo XLSX');
+    return;
+  }
+  if (scanning) return;
+
+  const container = $('scanner-container');
+  const video = $('video');
+  const btnScan = $('btnScan');
+  const btnStop = $('btnStop');
+  const btnTorch = $('btnTorch');
+
+  container.style.display = 'block';
+  btnScan.style.display = 'none';
+  btnStop.style.display = 'block';
+  btnTorch.style.display = 'none';
+  torchOn = false;
+
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+
+    // Lista de dispositivos
+    const devices = await codeReader.listVideoInputDevices();
+    let deviceId = undefined;
+    if (devices.length){
+      const back = devices.find(d => /back|rear|environment|trasera/i.test(d.label));
+      deviceId = (back || devices[devices.length - 1]).deviceId;
+    }
+
+    scanning = true;
+
+    codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
+      if (result){
+        const text = result.getText();
+        if (!text) return;
+
+        // Pausar el escaneo brevemente para evitar repeticiones
+        try { codeReader.reset(); } catch(_) {}
+
+        // Vibrar si el dispositivo lo soporta
+        if (navigator.vibrate) navigator.vibrate(120);
+
+        // Guardar en la lista
+        const textUpper = up(text);
+        const row = buscarLP(textUpper);
+        agregarEscaneo(textUpper, row);
+
+        // Reanudar escaneo tras 1.2s
+        setTimeout(() => {
+          if (scanning) restartDecode(video);
+        }, 1200);
+      }
+    });
+
+    // Intentar activar la linterna si el teléfono lo permite
+    if (video.srcObject) {
+      videoTrack = video.srcObject.getVideoTracks()[0];
+      const caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+      if (caps.torch) {
+        btnTorch.style.display = 'flex';
+      }
+    }
+
+  } catch (err){
+    console.error(err);
+    alert('No se pudo iniciar la cámara: ' + (err.message || err));
+    stopScan();
+  }
+}
+
+// Función que reanuda la cámara
+function restartDecode(video){
+  if (!codeReader || !scanning) return;
+  try {
+    codeReader.decodeFromVideoDevice(null, video, (result, err) => {
+      if (result && scanning){
+        const text = result.getText();
+        if (!text) return;
+        try { codeReader.reset(); } catch(_) {}
+        if (navigator.vibrate) navigator.vibrate(120);
+        
+        const textUpper = up(text);
+        const row = buscarLP(textUpper);
+        agregarEscaneo(textUpper, row);
+
+        setTimeout(() => { if (scanning) restartDecode(video); }, 1200);
+      }
+    });
+  } catch(_) {}
+}
+
+function stopScan(){
+  scanning = false;
+  torchOn = false;
+  videoTrack = null;
+  $('btnTorch').style.display = 'none';
+  $('btnTorch').classList.add('btn-outline');
+  $('btnTorch').classList.remove('btn-gold');
+
+  if (codeReader){
+    try { codeReader.reset(); } catch(_) {}
+    codeReader = null;
+  }
+  const video = $('video');
+  if (video && video.srcObject){
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
+  $('scanner-container').style.display = 'none';
+  $('btnScan').style.display = 'block';
+  $('btnStop').style.display = 'none';
+}
+
+$('btnScan').addEventListener('click', startScan);
+$('btnStop').addEventListener('click', stopScan);
+
+/* --- INGRESO MANUAL --- */
+function buscarManual() {
+  if (!dataRows.length) {
+    showToast('⚠️ Primero carga el archivo XLSX');
+    return;
+  }
+  const raw = up($('lpManual').value);
+  if (!raw) {
+    showToast('⚠️ Escribe un LP');
+    $('lpManual').focus();
+    return;
+  }
+  const row = buscarLP(raw);
+  agregarEscaneo(raw, row);
+  $('lpManual').value = '';
+  $('lpManual').blur();
+}
+
+$('btnManual').addEventListener('click', buscarManual);
+$('lpManual').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); buscarManual(); }
+});
+$('lpManual').addEventListener('input', (e) => {
+  const pos = e.target.selectionStart;
+  e.target.value = e.target.value.toUpperCase();
+  e.target.setSelectionRange(pos, pos);
+});
+
+/* --- TABS --- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    ['operar', 'historial', 'datos'].forEach(k => {
+      $('tab-' + k).classList.toggle('hidden', k !== target);
+    });
+    if (target === 'historial') {
+      renderHistorial();
+      refrescarStatsHist();
+    }
+    if (target !== 'operar' && scanning) stopScan();
+  });
+});
+/* ================================================================
+   PARTE 5: HISTORIAL, EXPORTACIÓN Y CIERRE
+   ================================================================ */
+
+async function renderHistorial() {
+  const cont = $('histList');
+  cont.innerHTML = '<div class="empty"><span class="loader"></span> Cargando...</div>';
+  
+  try {
+    const items = await dbGetAll();
+    items.sort((a, b) => b.timestamp - a.timestamp);
+
+    const term = up($('searchHistInput').value);
+
+    const filteredItems = items.filter(it => {
+      if (!term) return true;
+      const cli = up(it.cliente);
+      const rem = up(it.remision);
+      const sku = up(it.sku);
+      const lp = up(it.lp);
+      return lp.includes(term) || rem.includes(term) || cli.includes(term) || sku.includes(term);
+    });
+
+    if (!filteredItems.length) {
+      cont.innerHTML = `<div class="empty">${term ? 'No hay resultados' : 'Sin entregas registradas'}</div>`;
+      return;
+    }
+
+    const grupos = {};
+    filteredItems.forEach(it => {
+      const dateStr = it.fecha.split(',')[0];
+      if (!grupos[dateStr]) grupos[dateStr] = [];
+      grupos[dateStr].push(it);
+    });
+
+    let html = '';
+    let index = 0;
+    for (const [dia, itemsDia] of Object.entries(grupos)) {
+      const isOpen = term ? 'open' : '';
+      
+      html += `
+        <div class="acordeon ${isOpen}" id="acordeon-${index}">
+          <div class="acordeon-header" onclick="toggleAcordeon(${index})">
+            <span style="display:flex; align-items:center; gap:8px;">
+              ${iconCalendar} ${esc(dia)} 
+              <span style="font-size:12px; color:var(--text-muted); font-family:'Inter', sans-serif; font-weight:500;">
+                (${itemsDia.length} registros)
+              </span>
+            </span>
+            ${iconChevron}
+          </div>
+          <div class="acordeon-content">
+            ${itemsDia.map(it => `
+              <div class="hist-item">
+                <div class="h-top">
+                  <span class="h-lp">LP: ${esc(up(it.lp))}</span>
+                  <span class="h-fecha">${esc(it.fecha.split(',')[1] || '')}</span>
+                </div>
+                <div class="h-cliente">${esc(it.cliente || '—')}</div>
+                <div class="h-meta">
+                  <span>${iconLocation} ${esc(it.ubicacion || '—')}</span>
+                  <span>${iconDoc} ${esc(it.remision || '—')}</span>
+                  <span>${iconTag} ${esc(it.sku || '—')}</span>
+                  <span>${iconBox} ${esc(it.piezas || '—')}</span>
+                  <span>${iconUser} ${esc(it.operador || '—')}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      index++;
+    }
+    cont.innerHTML = html;
+    
+  } catch (err) {
+    console.error(err);
+    cont.innerHTML = `<div class="empty" style="color:#d32f2f">Error: ${esc(err.message)}</div>`;
+  }
+}
+
+window.toggleAcordeon = function(index) {
+  const el = $(`acordeon-${index}`);
+  if (el) el.classList.toggle('open');
+};
+
+$('searchHistInput').addEventListener('input', renderHistorial);
+
+async function refrescarStatsHist() {
+  try {
+    const items = await dbGetAll();
+    $('statHist').textContent = items.length;
+    $('statEntregados').textContent = new Set(items.map(i => up(i.lp)).filter(Boolean)).size;
+  } catch (e) { /* silencioso */ }
+}
+
+/* --- EXPORTAR A XLSX --- */
+$('btnExport').addEventListener('click', async () => {
+  try {
+    const items = await dbGetAll();
+    if (!items.length) { showToast('Sin registros para exportar'); return; }
+    items.sort((a, b) => a.timestamp - b.timestamp);
+
+    const rows = items.map(it => ({
+      FECHA_HORA: it.fecha, OPERADOR: it.operador, LP: up(it.lp), CLIENTE: it.cliente,
+      UBICACION: it.ubicacion, REMISION: it.remision, SKU: it.sku, PIEZAS_RESGUARDO: it.piezas
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [ { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 } ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Entregas');
+    const fecha = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    XLSX.writeFile(wb, `entregas_${fecha}.xlsx`);
+    showToast('📥 Exportado');
+  } catch (err) { alert('Error al exportar: ' + err.message); }
+});
+
+/* --- BORRAR HISTORIAL --- */
+$('btnClearHist').addEventListener('click', async () => {
+  if (!confirm('¿Borrar TODAS las entregas registradas?')) return;
+  try {
+    await dbClear();
+    showToast('🗑 Historial borrado');
+    renderHistorial();
+    refrescarStatsHist();
+  } catch (err) { alert('Error: ' + err.message); }
+});
+
+/* --- INICIALIZACIÓN --- */
+(async function init() {
+  const op = localStorage.getItem(OPERADOR_KEY);
+  if (op) $('operadorInput').value = op;
+
+  $('operadorInput').addEventListener('blur', () => {
+    const v = $('operadorInput').value.trim();
+    if (v) localStorage.setItem(OPERADOR_KEY, v);
+  });
+
+  loadPedidos();
+  updateStats();
+
+  try {
+    await openDB();
+    await refrescarStatsHist();
+  } catch (e) { console.error('IndexedDB no disponible:', e); }
+})();
+</script>
+</body>
+</html>
