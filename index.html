@@ -205,6 +205,52 @@
             min-height: 38px;
         }
 
+        .data-value-row {
+            display: flex;
+            align-items: stretch;
+            gap: 6px;
+        }
+
+        .data-value-row .data-value {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .btn-copy {
+            flex: 0 0 auto;
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            background: #ffffff;
+            color: #4a5568;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .btn-copy:hover:not(:disabled) {
+            background: #edf2f7;
+            border-color: #a0aec0;
+        }
+
+        .btn-copy:focus-visible {
+            outline: 2px solid #3182ce;
+            outline-offset: 2px;
+        }
+
+        .btn-copy:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-copy.copiado {
+            background: #38a169;
+            border-color: #38a169;
+            color: #ffffff;
+        }
+
         .full-width {
             grid-column: span 2;
         }
@@ -232,6 +278,9 @@
                 width: 100%;
             }
             .input-card {
+                display: none !important;
+            }
+            .btn-copy {
                 display: none !important;
             }
             .container {
@@ -281,11 +330,17 @@
         <div class="grid">
             <div class="data-group">
                 <span class="data-label">Remisión / OV</span>
-                <span class="data-value" id="out-remision">-</span>
+                <div class="data-value-row">
+                    <span class="data-value" id="out-remision">-</span>
+                    <button type="button" class="btn-copy" data-target="out-remision" aria-label="Copiar Remisión / OV" disabled>Copiar</button>
+                </div>
             </div>
             <div class="data-group">
                 <span class="data-label">Folio</span>
-                <span class="data-value" id="out-folio">-</span>
+                <div class="data-value-row">
+                    <span class="data-value" id="out-folio">-</span>
+                    <button type="button" class="btn-copy" data-target="out-folio" aria-label="Copiar Folio" disabled>Copiar</button>
+                </div>
             </div>
             <div class="data-group">
                 <span class="data-label">Fecha de Reporte</span>
@@ -339,6 +394,49 @@
             return `${yyyy}-${mm}-${dd}`;
         }
 
+        async function copiarValor(btn) {
+            const el = document.getElementById(btn.dataset.target);
+            const texto = (el?.innerText || '').trim();
+            if (!texto || texto === '-') return;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(texto);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = texto;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                }
+                btn.textContent = 'Copiado';
+                btn.classList.add('copiado');
+                clearTimeout(btn._t);
+                btn._t = setTimeout(() => {
+                    btn.textContent = 'Copiar';
+                    btn.classList.remove('copiado');
+                }, 1500);
+            } catch (e) {
+                btn.textContent = 'Error';
+                setTimeout(() => { btn.textContent = 'Copiar'; }, 1500);
+            }
+        }
+
+        function actualizarBotonesCopia() {
+            document.querySelectorAll('.btn-copy').forEach((btn) => {
+                const el = document.getElementById(btn.dataset.target);
+                const valor = (el?.innerText || '').trim();
+                btn.disabled = !valor || valor === '-';
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-copy');
+            if (btn) copiarValor(btn);
+        });
+
         function procesarTexto() {
             const rawText = document.getElementById('rawInput').value;
             
@@ -384,6 +482,8 @@
             } else {
                 document.getElementById('out-categoria').innerText = '-';
             }
+
+            actualizarBotonesCopia();
         }
 
         function limpiarFormulario() {
@@ -399,10 +499,12 @@
             document.getElementById('out-incidencia').innerText = '-';
             document.getElementById('out-categoria').innerText = '-';
             document.getElementById('out-fecha-impresion').innerText = '-';
+            actualizarBotonesCopia();
         }
 
         // Cargar fecha actual por defecto
         document.getElementById('out-fecha-impresion').innerText = obtenerFechaActual();
+        actualizarBotonesCopia();
     </script>
 </body>
 </html>
